@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/qgis2web.css"><link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .infolegend {
+		    padding: 6px 8px;
+            color: rgb(219, 219, 219);
+		    background-color: rgba(10, 10, 10, 0.8);
+		    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+		    border-radius: 5px;
+        }
+        
+        input {
+            background-color: #5298e7; 
+            border: none;
+            color: rgb(219, 219, 219);
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            border-radius: 5px;
+            transition-duration: 0.4s;
+            width: 280px
+        }  
+        input:hover{
+            background-color: rgba(50,50,50,0.2);
+            color: #5298e7;
+        }
+        }
+
+        h1 {
+            text-align:center;
+            color:rgb(219, 219, 219)
+        }
+
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="data/tl_2017_us_state_0.js"></script>
+        <script>
+
+        var base =  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+	attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+	subdomains: 'abcd',
+	maxZoom: 19
+});
+        var map = L.map('map', {
+            zoomControl:true, maxZoom:28, minZoom:1
+        }).fitBounds([[-8.234118436473423,-191.44166851472136],[80.63732052886341,-49.38732119217522]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+
+        function pop_tl_2017_us_state_0(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['State'] !== null ? autolinker.link(feature.properties['State'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Percent Vaccinated </th>\
+                        <td>' + (feature.properties['Covid_Data_people_fully_vaccinated_per_hundred'] !== null ? autolinker.link(feature.properties['Covid_Data_people_fully_vaccinated_per_hundred'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Cases</th>\
+                        <td>' + (feature.properties['Covid_Data_tot_cases'] !== null ? autolinker.link(feature.properties['Covid_Data_tot_cases'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Total Deaths</th>\
+                        <td>' + (feature.properties['Covid_Data_tot_death'] !== null ? autolinker.link(feature.properties['Covid_Data_tot_death'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">New Cases</th>\
+                        <td>' + (feature.properties['Covid_Data_new_case'] !== null ? autolinker.link(feature.properties['Covid_Data_new_case'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">New Deaths</th>\
+                        <td>' + (feature.properties['Covid_Data_new_death'] !== null ? autolinker.link(feature.properties['Covid_Data_new_death'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            layer.bindPopup(popupContent, {maxHeight: 400});
+        }
+
+        
+
+        var colors = ['#fee5d9','#fcbba1','#fc9272','#fb6a4a','#de2d26','#a50f15'];
+        var colors_cases = ["#dadaeb","#bcbddc","#9e9ac8","#756bb1","#54278f"];
+        var colors_deaths = ["#feedde","#fdd0a2","#fdae6b","#fd8d3c","#e6550d","#a63603"];
+        var colors_new_cases = ["#feebe2","#fcc5c0","#fa9fb5","#f768a1","#c51b8a","#7a0177"];
+        var colors_new_deaths = ["#edf8e9","#c7e9c0","#a1d99b","#74c476","#31a354","#006d2c"];
+        var breaks_percent_vaccinated = [-1,0,44,50,56,62,68];
+        var breaks_total_cases = [0,0.2,0.6,1.2,2.7,9];
+        var breaks_total_deaths = [0,0.0040,0.0100,0.0180,0.0300,0.07];
+        var breaks_new_cases = [0,318,838,1510,2999,5313];
+        var breaks_new_deaths = [-2,7,19,45,88,169];
+
+
+        function loop_colors(feature,breaks,colors){
+            for(var i = 0; i <breaks.length;i++){
+                if(feature > breaks[i] && feature <= breaks[i+1]){
+                    return colors[i];
+                }
+            }
+            return 'white';
+        }
+        function style_states_vax(feature){
+            return {
+                pane: 'pane_tl_2017_us_state_0',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: loop_colors(feature.properties['Covid_Data_people_fully_vaccinated_per_hundred'],breaks_percent_vaccinated,colors),
+                interactive: true,
+            }
+        }
+        function style_states_cases(feature){
+            return {
+                pane: 'pane_tl_2017_us_state_0',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: loop_colors(feature.properties['Covid_Data_tot_cases'],breaks_total_cases,colors_cases),
+                interactive: true,
+            }
+        }
+
+        function style_states_deaths(feature){
+            return {
+                pane: 'pane_tl_2017_us_state_0',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: loop_colors(feature.properties['Covid_Data_tot_death'],breaks_total_deaths,colors_deaths),
+                interactive: true,
+            }
+        }
+
+        function style_states_new_cases(feature){
+            return {
+                pane: 'pane_tl_2017_us_state_0',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: loop_colors(feature.properties['Covid_Data_new_case'],breaks_new_cases,colors_new_cases),
+                interactive: true,
+            }
+        }
+
+        function style_states_new_deaths(feature){
+            return {
+                pane: 'pane_tl_2017_us_state_0',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: loop_colors(feature.properties['Covid_Data_new_death'],breaks_new_deaths,colors_new_deaths),
+                interactive: true,
+            }
+        }
+        function style_clear(feature){
+            return {
+                pane: 'pane_tl_2017_us_state_0',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'black',
+                interactive: true,
+            }
+        }
+
+        map.createPane('pane_tl_2017_us_state_0');
+        map.getPane('pane_tl_2017_us_state_0').style.zIndex = 400;
+        map.getPane('pane_tl_2017_us_state_0').style['mix-blend-mode'] = 'normal';
+        var layer_tl_2017_us_state_0 = new L.geoJson(json_tl_2017_us_state_0, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_tl_2017_us_state_0',
+            layerName: 'layer_tl_2017_us_state_0',
+            pane: 'pane_tl_2017_us_state_0',
+            onEachFeature: pop_tl_2017_us_state_0,
+            style: style_states_vax,
+        });
+        var layer_tl_2017_us_state_0_cases = new L.geoJson(json_tl_2017_us_state_0, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_tl_2017_us_state_0',
+            layerName: 'layer_tl_2017_us_state_0',
+            pane: 'pane_tl_2017_us_state_0',
+            onEachFeature: pop_tl_2017_us_state_0,
+            style: style_states_cases,
+        });
+        var layer_tl_2017_us_state_0_new_cases = new L.geoJson(json_tl_2017_us_state_0, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_tl_2017_us_state_0',
+            layerName: 'layer_tl_2017_us_state_0',
+            pane: 'pane_tl_2017_us_state_0',
+            onEachFeature: pop_tl_2017_us_state_0,
+            style: style_states_new_cases,
+        });
+
+        var layer_tl_2017_us_state_0_deaths = new L.geoJson(json_tl_2017_us_state_0, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_tl_2017_us_state_0',
+            layerName: 'layer_tl_2017_us_state_0',
+            pane: 'pane_tl_2017_us_state_0',
+            onEachFeature: pop_tl_2017_us_state_0,
+            style: style_states_deaths,
+        });
+        var layer_tl_2017_us_state_0_new_deaths = new L.geoJson(json_tl_2017_us_state_0, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_tl_2017_us_state_0',
+            layerName: 'layer_tl_2017_us_state_0',
+            pane: 'pane_tl_2017_us_state_0',
+            onEachFeature: pop_tl_2017_us_state_0,
+            style: style_states_new_deaths,
+        });
+
+
+        var layer_tl_2017_us_state_0_clear = new L.geoJson(json_tl_2017_us_state_0, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_tl_2017_us_state_0',
+            layerName: 'layer_tl_2017_us_state_0',
+            pane: 'pane_tl_2017_us_state_0',
+            onEachFeature: pop_tl_2017_us_state_0,
+            style: style_clear,
+        });
+        bounds_group.addLayer(layer_tl_2017_us_state_0);
+        var layerGroup = L.layerGroup().addTo(map)
+        layerGroup.addLayer(layer_tl_2017_us_state_0_clear);
+        layerGroup.addLayer(layer_tl_2017_us_state_0);
+        layerGroup.addLayer(layer_tl_2017_us_state_0_cases);
+        layerGroup.addLayer(layer_tl_2017_us_state_0_deaths);
+        layerGroup.addLayer(layer_tl_2017_us_state_0_new_cases);
+        layerGroup.addLayer(layer_tl_2017_us_state_0_new_deaths);
+        map.addLayer(base);
+        setBounds();
+
+        var legend = L.control({position: 'topright'});
+        legend.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'infolegend');
+            div.innerHTML =
+            '<h1> Select Layer to view: </h1><p></p>' +
+	        '<input type="button" id="option1" value="Percentage of State Vaccinated"><br>' +
+            '<input type="button" id="option2" value="Total Number of Cases"> <br>' +
+            '<input type="button" id="option3" value="Total Number of Deaths"><br>' +
+            '<input type="button" id="option4" value="Total Number of New Cases"><br>' +
+            '<input type="button" id="option5" value="Total Number of New Deaths"><br>' +
+            '<input type="button" id="option6" value="Clear All">';
+            
+            return div;
+
+        };
+        legend.addTo(map);
+
+        function vax(){
+            layer_tl_2017_us_state_0.bringToFront();
+        }
+        function cases(){
+            layer_tl_2017_us_state_0_cases.bringToFront();
+        }
+        function deaths(){
+            layer_tl_2017_us_state_0_deaths.bringToFront();
+        }
+        function new_cases(){
+            layer_tl_2017_us_state_0_new_cases.bringToFront();
+        }
+        function new_deaths(){
+            layer_tl_2017_us_state_0_new_deaths.bringToFront();
+        }
+        function clearall(){
+            layer_tl_2017_us_state_0_clear.bringToFront();
+        }
+
+
+
+        document.getElementById("option1").addEventListener("click",vax);
+        document.getElementById("option2").addEventListener("click",cases);
+        document.getElementById("option3").addEventListener("click",deaths);
+        document.getElementById("option4").addEventListener("click",new_cases);
+        document.getElementById("option5").addEventListener("click",new_deaths);
+        document.getElementById("option6").addEventListener("click",clearall);
+
+
+        
+        </script>
+    </body>
+</html>
